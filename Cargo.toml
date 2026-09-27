@@ -1,0 +1,11 @@
+[workspace]
+members = ["cli", "lib", "qtlib"]
+resolver = "2"
+
+[workspace.package]
+version = "0.6.0"
+edition = "2021"
+authors = ["Pirate Chain Contributors"]
+
+[patch.crates-io]
+halo2_poseidon = { git = "https://github.com/PirateNetwork/halo2.git", rev = "261faaccd5a30c19bb8468600841a0dac305adf5" }

@@ -1,12 +1,10 @@
 [package]
 name = "piratepaperwallet"
-version = "0.1.0"
-authors = ["mrlynch"]
-edition = "2018"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
-clap = "2.33.0"
+clap = { version = "4.5", features = ["derive"] }
 piratepaperlib = { path = "../lib" }
-json = "0.11.14"
-printpdf = "0.3.2"
-hex = "0.3"
+hex = "0.4"

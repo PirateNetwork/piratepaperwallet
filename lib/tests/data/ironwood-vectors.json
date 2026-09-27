@@ -1,0 +1,66 @@
+{
+  "entropy": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "vectors": [
+    {
+      "account": 0,
+      "addresses": [
+        "pirate1lmugzsm86svtmtuhj004f4ukhg7w0vqvjule5a42hgle3hdpc65fkmm5g9hkeuq6wthq69r3nzy",
+        "pirate15tqmu8ucxjqlwny2l5xkqzp20hnj0y7fgsxsk7edk9jdrxust6sv234tvr7z2ukac7f2wtsdfww",
+        "pirate1jmqjkk34plryj03ekda3kayhgxxfttxj3jk32uy25ss80p48qhv6p4kvvaf8pak82mms6tuh7tf",
+        "pirate1h8dgex8zrc9ydwgfxe78nw8my849d8u85zs94uw7hxgz7e7mgj46709lgy0juxurdw7ecdx05qs",
+        "pirate1e0qs6c45wv7p355sjsnmj74yt73l66ezze6frqkt2mca7mphf6r76kes9fk2txu2c9uj207lv57",
+        "pirate13hsq2l9xmlnffa584nrququjtnk9v9r5q78knzzqv55us4gnt25rrznksttcskrh0m4sv75hydl"
+      ],
+      "private_key_bytes": "03855a9efb00000080802f360dfd2196590777ff12f75b35cd4ced185665ea0a6a1ebdf77839e1b691e70d129fa06ea6f49ea8ba216b71482f7a973dc3f157a5a8d003f660ff37a77c",
+      "path": "m/32'/141'/0'",
+      "mode": "raw",
+      "viewing_key_bytes": "03855a9efb00000080802f360dfd2196590777ff12f75b35cd4ced185665ea0a6a1ebdf77839e1b6919458728a63a5912c970bf4e98c969f51f8be535855d5bf8ef453b0d459cf882baa57651ead968698a28bdbdc70776776d3cd3dc52ce8477dfedbca6b3f07b40042219c0435c5a4ac0dc85e27372e6c2e51e922eebfecf93e3ad3e59ea7a48021"
+    },
+    {
+      "account": 1,
+      "addresses": [
+        "pirate1k92mdc47kyamnpk2a5upmgwx5tcgm2rpl5egctq8vu79xe79n3pxugyuvqye5l3xkmgmgu0qw0m",
+        "pirate1yvjdp7vsn3szcd8egu7wj27825zu7n72zqhkrz0w0ppy8ujewhs7t04drm3cgjytdn7pgj62nt2",
+        "pirate1mc03jfcylh6smhlvwcgrl5ysl3u9lawyza2pfayef8h5fxq0a78kkq378tqp43xh2c6n7ay23zk",
+        "pirate1xmn0s7p5p8289366kn7kj37n039806aw0z3ws64ncc2ujxzydfjstz2sz6yu2cft5sttvjam446",
+        "pirate1xe0umc9tflngwhwupgrlaj3uhcmgpks9yk6g5vgvax35lzdv6jav0js49c4h629srlvs7kxl0ug",
+        "pirate1jxaqt4vlev56am3k4q0tzpk95c0ddunxlu9agkvpwn68357femkmg6yh2nmu2y0sk4r6u6vkm0n"
+      ],
+      "private_key_bytes": "03855a9efb01000080f1a55cf10dda1046b11d67920524939b234539f0c77a7e81c01363bb1928bfc6a7223047db5b441b14ddb4428689b6c4c22271366f380dce703230a74f35b0cf",
+      "path": "m/32'/141'/1'",
+      "mode": "raw",
+      "viewing_key_bytes": "03855a9efb01000080f1a55cf10dda1046b11d67920524939b234539f0c77a7e81c01363bb1928bfc693428085a4102bd1e19298e122976323dc3d9498cd87fab8ba77870083727c0a417d3ed77cbd1c12017711ede1c9a616296ae596544cff99b25deabdabe97c26ec3c8fede1dfd45d95cdac833ab5fc4f19210562b4b9beb866815ec7075f7e00"
+    },
+    {
+      "account": 0,
+      "addresses": [
+        "pirate125e468a96xplfk7k0x49yqq0kduj0q8yhjcvknwh7vwy8sdwg7pfdzw8ev0h7fug968zgsplmen",
+        "pirate1lstnghtlgntsh7uj3sjhj9wt0vzywc6xpw2xdupyhrvfav6d67e7v5zfd8ntcpy54mdzx6lwjwj",
+        "pirate132mfkqefv24f2nh9zm8aj98802ql5r5wt4h6l298d4uywpxnsc4zvd4apfdchvlr9dwfcrp7yum",
+        "pirate1gz9dfu6mapxwny5l23s4q2tfmgrkyct0vp57u3g7rr5d0ajqcxnkgnnr4rmtk92m6l2sch4q8f0",
+        "pirate1w9c5dlgfng0rsqpcjw2p7cr2l7eqqlj94demve2wd4czyazredqfyw2krwx3h3chxntj66fy5nj",
+        "pirate1xst5v9t452wmz7yuhpq7e2x7t3frccpcqg9lmy88zmxkhc4uxhmj0t73ekc2gd63tevgvz53hh7"
+      ],
+      "private_key_bytes": "036edd717f000000801e5870542d4bb4b833f5797a6d7f15edd1cd17f343d9dba7083fd10655ac87656c98aae3dc5a52ef9f3c68c72fbacacdf00fc3d55570693ffd3ae503073461ba",
+      "path": "m/32'/141'/0'",
+      "mode": "bip39",
+      "viewing_key_bytes": "036edd717f000000801e5870542d4bb4b833f5797a6d7f15edd1cd17f343d9dba7083fd10655ac8765376f5fe2a019aee981b4f7fcaede36d87c1148030412d04543b06c6249048a190e4ce2626755f3b2447cc3c3e598f0500d4d25956413023978a624019deffd07fb341f25761eaf1d0e52af7a063cf5a14eb7304d20ab041aef0e68012d5e711d"
+    },
+    {
+      "account": 1,
+      "addresses": [
+        "pirate1r2xc2hqgvkgesr2wfj052agseuuaux89gxk9f2wfw06j793uzlwl8a2xuxjqn5w9a6k3k48eevx",
+        "pirate1nlezz260khr7mptj28umkldg4p5cwgdtn64ut8ajkjmvms2d3avhx3zqpcpxmnvrrlzt7w5md7s",
+        "pirate1hqgaaxqv2yllarcz4sg2myvdww00yk9spu7s69pl7jr80hnkecddfkmgm499ef0cr3asj9lg7k5",
+        "pirate1d9s4w90upw5dc87hcus4rrfsfqlu4uk254w0tkfflhkv4vds00tcujfm3vug0jym9cvzuapfsm4",
+        "pirate1hl9dvyvwl9essqd85psj3r2zuyqywshs5jy3m25xun3qe09dvazrzqrr7cs5drh9cqj6j4re6a5",
+        "pirate1kcvvpj9n4fe2sw2rl9eyy23erekcaq3kxjdjpymkasz4eyxkajwxzhenr6zaqkzk8cmzwqp0379"
+      ],
+      "private_key_bytes": "036edd717f01000080d4e15eb3c4070bf8ba3dd2fb1589b117eaaa11fbf25eb348df69654d9fd76058ed4980d08c162cef3f849ef78338fd9aff00ced2824e0d9f5167605f49158c90",
+      "path": "m/32'/141'/1'",
+      "mode": "bip39",
+      "viewing_key_bytes": "036edd717f01000080d4e15eb3c4070bf8ba3dd2fb1589b117eaaa11fbf25eb348df69654d9fd76058c8dc7a5470f291fa86156fa8470ba6d93971c71f3797de9dc24e0965fcb99c2d9af2416f870ca3073897a6bf7bacd9ae7a844f70bd54fe74e9b970458a53f315752b6c1ac41e16a6db6f8ed980e7307d5c17b858851bf8e88084e24c36f43b01"
+    }
+  ],
+  "source": "Pirate full node f4323ef0a6 (ZIP-32 implementation c3f4aa60bf), independently executed source harness"
+}

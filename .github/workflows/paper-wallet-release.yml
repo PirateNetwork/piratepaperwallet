@@ -1,0 +1,187 @@
+name: Pirate Paper Wallet CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # Every master commit gets its own release, even if another commit arrives
+  # before its build finishes. Retries of the same commit run sequentially.
+  group: paper-wallet-ci-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test wallet generation
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Run workspace tests (library, CLI, and FFI)
+        run: cargo test --workspace --locked
+      - name: Determine package version
+        id: version
+        run: |
+          version="$(cargo metadata --locked --no-deps --format-version 1 | python3 -c 'import json,sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "piratepaperwallet"))')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            runner: ubuntu-22.04
+            suffix: ''
+          - platform: linux-aarch64
+            runner: ubuntu-22.04-arm
+            suffix: ''
+          - platform: windows-x86_64
+            runner: windows-2022
+            suffix: .exe
+          - platform: macos-arm64
+            runner: macos-14
+            suffix: ''
+          - platform: macos-x86_64
+            runner: macos-15-intel
+            suffix: ''
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build CLI
+        run: cargo build --release --locked -p piratepaperwallet
+      - name: Stage binary
+        shell: bash
+        env:
+          SUFFIX: ${{ matrix.suffix }}
+        run: |
+          mkdir -p dist
+          cp "target/release/piratepaperwallet${SUFFIX}" "dist/piratepaperwallet${SUFFIX}"
+          "dist/piratepaperwallet${SUFFIX}" --version
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.platform }}
+          path: dist/piratepaperwallet*
+          if-no-files-found: error
+
+  release:
+    name: Sign and Release
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/master')
+    runs-on: ubuntu-22.04
+    needs: [test, build]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Install signing dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnupg zip
+      - uses: actions/download-artifact@v7
+        with:
+          path: downloaded
+      - name: Determine release version
+        shell: bash
+        env:
+          BASE_VERSION: ${{ needs.test.outputs.version }}
+        run: |
+          set -euo pipefail
+          base_version="$BASE_VERSION"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            if [[ "$GITHUB_REF_NAME" != "v$base_version" ]]; then
+              echo "Tag $GITHUB_REF_NAME does not match CLI package version $base_version" >&2
+              exit 1
+            fi
+            version="$base_version"
+          else
+            version="$base_version-${GITHUB_SHA:0:7}"
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - name: Package platform binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          for platform in linux-x86_64 linux-aarch64 windows-x86_64 macos-arm64 macos-x86_64; do
+            binary=piratepaperwallet
+            if [[ "$platform" == windows-* ]]; then binary=piratepaperwallet.exe; fi
+            source="downloaded/$platform/$binary"
+            test -f "$source"
+            if [[ "$platform" != windows-* ]]; then chmod 755 "$source"; fi
+            zip -q -j "release/piratepaperwallet-$platform-v$VERSION.zip" "$source"
+          done
+      - name: Import GPG signing key
+        env:
+          PIRATE_GPG_PRIVATE_KEY: ${{ secrets.PIRATE_GPG_PRIVATE_KEY }}
+          PIRATE_GPG_PASSPHRASE: ${{ secrets.PIRATE_GPG_PASSPHRASE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$PIRATE_GPG_PRIVATE_KEY" || -z "$PIRATE_GPG_PASSPHRASE" ]]; then
+            echo "PIRATE_GPG_PRIVATE_KEY and PIRATE_GPG_PASSPHRASE secrets are required" >&2
+            exit 1
+          fi
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+          echo 'allow-loopback-pinentry' >> ~/.gnupg/gpg-agent.conf
+          gpgconf --kill gpg-agent
+          printf '%s' "$PIRATE_GPG_PRIVATE_KEY" \
+            | tr -d '\r' \
+            | sed 's/-----BEGIN PGP PRIVATE KEY BLOCK-----/-----BEGIN PGP PRIVATE KEY BLOCK-----\n/; s/-----END PGP PRIVATE KEY BLOCK-----/\n-----END PGP PRIVATE KEY BLOCK-----/' \
+            | sed -n '/-----BEGIN PGP PRIVATE KEY BLOCK-----/,/-----END PGP PRIVATE KEY BLOCK-----/p' \
+            | gpg --batch --import
+      - name: Sign release archives and hashes
+        env:
+          PIRATE_GPG_PASSPHRASE: ${{ secrets.PIRATE_GPG_PASSPHRASE }}
+        run: bash ./signbinaries.sh --version "$VERSION"
+      - name: Generate release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            notes_raw="$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")"
+          else
+            notes_raw="$(git log -1 --format='%B')"
+          fi
+          if [[ -z "$notes_raw" ]]; then
+            notes_formatted='- (no release notes provided)'
+          else
+            notes_formatted="$(printf '%s\n' "$notes_raw" | awk '
+              { gsub(/^[ \t]+|[ \t]+$/, "", $0); }
+              $0 == "" { next }
+              /^[*-][ \t]+/ { sub(/^[*-][ \t]+/, "- ", $0); print; next }
+              { print "- " $0 }
+            ')"
+          fi
+          sha256sum release/piratepaperwallet-*.zip | sed 's|release/||' | sort -k2,2 > release_hashes.txt
+          {
+            echo "Pirate Paper Wallet $VERSION"
+            echo
+            echo 'Updates'
+            echo "$notes_formatted"
+            echo
+            cat release_hashes.txt
+          } > release_body.md
+          echo "RELEASE_TITLE=Version $VERSION Signed Release" >> "$GITHUB_ENV"
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: ${{ env.RELEASE_TITLE }}
+          tag_name: v${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+          body_path: release_body.md
+          files: |
+            release/piratepaperwallet-*.zip
+            release/signatures-v*.zip
+          fail_on_unmatched_files: true

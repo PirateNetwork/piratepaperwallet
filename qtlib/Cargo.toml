@@ -1,13 +1,13 @@
 [package]
 name = "qtlib"
-version = "0.1.0"
-authors = ["mrlynch"]
-edition = "2018"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [lib]
 name = "piratepaperrust"
 crate-type = ["staticlib"]
 
 [dependencies]
-libc = "0.2.58"
+libc = "0.2"
 piratepaperlib = { path = "../lib" }

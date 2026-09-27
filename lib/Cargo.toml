@@ -1,26 +1,25 @@
 [package]
 name = "piratepaperlib"
-version = "0.1.0"
-authors = ["mrlynch"]
-edition = "2018"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [features]
-default = ["printpdf", "systemrand"]
-systemrand = []
+default = ["printpdf"]
+printpdf = ["dep:printpdf", "dep:qrcode"]
 
 [dependencies]
-rand = "0.5"
-hex = "0.3"
-bech32 = "0.6"
-zcash_primitives = {  git = "https://github.com/zcash/librustzcash", rev = "5a48d179b8434a0318e7e19dda506e245a904092" }
-json = "0.11.14"
-qrcode = { version = "0.8", default-features = false }
-printpdf = { version = "0.3.2", optional = true }
-libsecp256k1 = "0.2.2"
-ripemd160 = "0.8.0"
-sha2 = "0.8.0"
-base58 = "0.1.0"
-tiny-bip39 = "0.6.2"
-
-[dev-dependencies]
-array2d = "0.1.0"
+bech32 = "0.11"
+bip39 = "2.1"
+blake2b_simd = "1.0"
+hex = "0.4"
+orchard = { git = "https://github.com/PirateNetwork/orchard.git", rev = "c0545158b15259805e31ea1953867d6a507c08e4", default-features = false, features = ["std"] }
+rand = "0.8"
+rand_chacha = "0.3"
+sapling = { package = "sapling-crypto", git = "https://github.com/piratenetwork/sapling-crypto.git", rev = "62fcf59a4d933244ee6280182c6cd3e5290e8a90", default-features = false, features = ["std"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+zip32 = "0.2.1"
+printpdf = { version = "0.12.8", default-features = false, optional = true }
+qrcode = { version = "0.14.1", default-features = false, optional = true }

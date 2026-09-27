@@ -1,32 +1,45 @@
-use libc::{c_char};
+use libc::c_char;
+use piratepaperlib::paper::{self, SeedSource, WalletOptions};
 use std::ffi::{CStr, CString};
-use piratepaperlib::paper;
 
 /**
- * Call into rust to generate a paper wallet. Returns the paper wallet in JSON form. 
- * NOTE: the returned string is owned by rust, so the caller needs to call rust_free_string with it
- * after using it to free it properly
- */ 
+ * Call into rust to generate a paper wallet. Returns the paper wallet in JSON form.
+ * The returned string is owned by Rust; call rust_free_string after use.
+ * A null pointer means generation failed (including unavailable OS randomness).
+ */
+/// # Safety
+/// `entropy` must be null or a valid NUL-terminated string for the duration of the call.
 #[no_mangle]
-pub extern fn rust_generate_wallet(count: u32, entropy: *const c_char) -> *mut c_char {
-    let entropy_str = unsafe {
-        assert!(!entropy.is_null());
-
-        CStr::from_ptr(entropy)
-    };
-
-    let c_str = CString::new(paper::generate_wallet(false, count, entropy_str.to_bytes())).unwrap();
-    return c_str.into_raw();
+pub unsafe extern "C" fn rust_generate_wallet(count: u32, entropy: *const c_char) -> *mut c_char {
+    if entropy.is_null() {
+        return std::ptr::null_mut();
+    }
+    let generated = std::panic::catch_unwind(|| {
+        let entropy = unsafe { CStr::from_ptr(entropy) };
+        let options = WalletOptions {
+            count,
+            ..WalletOptions::default()
+        };
+        paper::generate_wallet(SeedSource::Random(entropy.to_bytes()), options)
+            .and_then(|wallets| paper::to_json(&wallets))
+    });
+    match generated {
+        Ok(Ok(json)) => CString::new(json).map_or(std::ptr::null_mut(), CString::into_raw),
+        _ => std::ptr::null_mut(),
+    }
 }
 
 /**
- * Callers that recieve string return values from other functions should call this to return the string 
+ * Callers that recieve string return values from other functions should call this to return the string
  * back to rust, so it can be freed. Failure to call this function will result in a memory leak
- */ 
+ */
+/// # Safety
+/// `s` must be null or an unfreed pointer returned by `rust_generate_wallet`.
 #[no_mangle]
-pub extern fn rust_free_string(s: *mut c_char) {
-    unsafe {
-        if s.is_null() { return }
-        CString::from_raw(s)
-    };
+pub unsafe extern "C" fn rust_free_string(s: *mut c_char) {
+    if !s.is_null() {
+        unsafe {
+            drop(CString::from_raw(s));
+        }
+    }
 }

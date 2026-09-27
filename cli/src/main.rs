@@ -1,242 +1,184 @@
-extern crate clap;
-extern crate piratepaperlib;
-
 mod version;
 
-use clap::{Arg, App};
-use piratepaperlib::paper::*;
+use std::fs::OpenOptions;
+use std::io::{self, Write};
+use std::path::PathBuf;
+use std::process::ExitCode;
+
+use clap::{Parser, ValueEnum};
+use piratepaperlib::paper::{self, Pool, SeedSource, WalletOptions};
 use piratepaperlib::pdf;
-use std::io;
-use std::io::prelude::*;
-use hex;
 
-fn main() {
-    let matches = App::new("piratepaperwallet")
-       .version(version::version())
-       .about("A command line Pirate Sapling paper wallet generator")
-       .arg(Arg::with_name("format")
-                .short("f")
-                .long("format")
-                .help("What format to generate the output in: json or pdf")
-                .takes_value(true)
-                .value_name("FORMAT")
-                .possible_values(&["pdf", "json"])
-                .default_value("json"))
-       .arg(Arg::with_name("nohd")
-                .short("n")
-                .long("nohd")
-                .help("Don't reuse HD keys. Normally, piratepaperwallet will use the same HD key to derive multiple addresses. This flag will use a new seed for each address"))
-       .arg(Arg::with_name("nobip39")
-                .short("b")
-                .long("nobip39")
-                .help("Disable creating and using a 64-byte Bip39seed and 24 word seed phrase"))
-       .arg(Arg::with_name("output")
-                .short("o")
-                .long("output")
-                .index(1)
-                .help("Name of output file."))
-        .arg(Arg::with_name("entropy")
-                .short("e")
-                .long("entropy")
-                .takes_value(true)
-                .help("Provide additional entropy to the random number generator. Any random string, containing 32-64 characters"))
-        .arg(Arg::with_name("phrase")
-                .short("p")
-                .long("phrase")
-                .takes_value(true)
-                .help("Generate Wallet from 24 word seed phrase"))
-        .arg(Arg::with_name("hdseed")
-                .short("s")
-                .long("hdseed")
-                .takes_value(true)
-                .help("Generate Wallet from 32 byte hex HDSeed"))
-        .arg(Arg::with_name("vanity_prefix")
-                .long("vanity")
-                .help("Generate a vanity address with the given prefix")
-                .takes_value(true))
-        .arg(Arg::with_name("threads")
-                .long("threads")
-                .help("Number of threads to use for the vanity address generator. Set this to the number of CPUs you have")
-                .takes_value(true)
-                .default_value("1"))
-       .arg(Arg::with_name("BIP44CoinType")
-                .short("t")
-                .long("cointype")
-                .help("The Bip44 coin type used in the derivation path")
-                .takes_value(true)
-                .default_value("141")
-                .validator(|i:String| match i.parse::<i32>() {
-                        Ok(_)   => return Ok(()),
-                        Err(_)  => return Err(format!("BIP44CoinType '{}' is not a number", i))
-                }))
-        .arg(Arg::with_name("z_addresses")
-                 .short("z")
-                 .long("zaddrs")
-                 .help("Number of Z addresses (Sapling) to generate")
-                 .takes_value(true)
-                 .default_value("1")
-                 .validator(|i:String| match i.parse::<i32>() {
-                         Ok(_)   => return Ok(()),
-                         Err(_)  => return Err(format!("Number of addresses '{}' is not a number", i))
-                 }))
-       .get_matches();
+#[derive(Clone, Copy, ValueEnum)]
+enum CliPool {
+    Ironwood,
+    Sapling,
+}
 
-    let nohd: bool    = matches.is_present("nohd");
-    let nobip39: bool    = matches.is_present("nobip39");
-
-    // Get the filename and output format
-    let filename = matches.value_of("output");
-    let format   = matches.value_of("format").unwrap();
-
-    // Writing to PDF requires a filename
-    if format == "pdf" && filename.is_none() {
-        eprintln!("Need an output file name when writing to PDF");
-        return;
+impl From<CliPool> for Pool {
+    fn from(pool: CliPool) -> Self {
+        match pool {
+            CliPool::Ironwood => Pool::Ironwood,
+            CliPool::Sapling => Pool::Sapling,
+        }
     }
+}
 
-    // Get the filename and output format
-    let filename = matches.value_of("output");
-    let format   = matches.value_of("format").unwrap();
+#[derive(Clone, Copy, ValueEnum)]
+enum OutputFormat {
+    Json,
+    Pdf,
+}
 
-    // Writing to PDF requires a filename
-    if format == "pdf" && filename.is_none() {
-        eprintln!("Need an output file name when writing to PDF");
-        return;
+#[derive(Parser)]
+#[command(name = "piratepaperwallet", version = version::version(), about = "Offline Pirate Chain Ironwood paper wallet generator", after_help = "Ironwood funds can be received after the October 3, 2026 network activation.\nFor recovery, import the extended spending key into an Ironwood-enabled wallet.\nThis generator uses ZIP-32 compatible with full node 6.0.7+ and the updated light wallet.\nUse --pool sapling to recover an older Sapling paper wallet.")]
+struct Args {
+    /// Shielded pool. Sapling is for recovering legacy paper wallets.
+    #[arg(long, value_enum, default_value = "ironwood")]
+    pool: CliPool,
+
+    /// JSON or printable PDF output.
+    #[arg(short, long, value_enum, default_value = "json")]
+    format: OutputFormat,
+
+    /// Output file (required for PDF).
+    #[arg(value_name = "OUTPUT")]
+    output: Option<PathBuf>,
+
+    /// Output file, alternate to the positional OUTPUT argument.
+    #[arg(short = 'o', long = "output", conflicts_with = "output")]
+    output_option: Option<PathBuf>,
+
+    /// Add user entropy to OS randomness.
+    #[arg(short, long, conflicts_with_all = ["hdseed", "phrase", "partialphrase", "vanity"])]
+    entropy: Option<String>,
+
+    /// Recover accounts from a 24-word English BIP39 phrase.
+    #[arg(short, long, conflicts_with_all = ["hdseed", "partialphrase", "vanity"])]
+    phrase: Option<String>,
+
+    /// Recover candidate accounts from a 23-word phrase with one missing word.
+    #[arg(long, conflicts_with_all = ["hdseed", "phrase", "vanity"])]
+    partialphrase: Option<String>,
+
+    /// Recover accounts from the 32-byte paper wallet HD seed in hex.
+    #[arg(short = 's', long)]
+    hdseed: Option<String>,
+
+    /// Search for a default address whose characters after pirate1 or zs1 start with PREFIX.
+    #[arg(long, conflicts_with_all = ["hdseed", "phrase", "partialphrase"])]
+    vanity: Option<String>,
+
+    /// Number of workers for vanity search.
+    #[arg(long, default_value_t = 1)]
+    threads: usize,
+
+    /// Number of shielded accounts to generate.
+    #[arg(
+        short = 'z',
+        long = "zaddrs",
+        visible_alias = "count",
+        default_value_t = 1
+    )]
+    count: u32,
+
+    /// ZIP-32 coin type. Mainnet Pirate Chain uses 141.
+    #[arg(short = 't', long = "cointype", default_value_t = 141)]
+    coin_type: u32,
+
+    /// Give each generated account a separate HD seed.
+    #[arg(short = 'n', long)]
+    nohd: bool,
+
+    /// Derive from the raw HD seed without BIP39 stretching.
+    #[arg(short = 'b', long)]
+    nobip39: bool,
+}
+
+fn run() -> Result<(), String> {
+    let args = Args::parse();
+    let output = args.output_option.or(args.output);
+    if matches!(args.format, OutputFormat::Pdf) && output.is_none() {
+        return Err("PDF output requires a file name".to_owned());
     }
-
-    // Number of z addresses to generate
-    let z_addresses = matches.value_of("z_addresses").unwrap().parse::<u32>().unwrap();
-
-    let cointype = if !matches.value_of("BIP44CoinType").is_none() {
-        Some(matches.value_of("BIP44CoinType").unwrap().parse::<u32>().unwrap())
-    } else {
-        None
+    if args.vanity.is_none() && args.threads != 1 {
+        return Err("--threads is only used with --vanity".to_owned());
+    }
+    let options = WalletOptions {
+        pool: args.pool.into(),
+        count: args.count,
+        coin_type: args.coin_type,
+        nohd: args.nohd,
+        nobip39: args.nobip39,
     };
-
-    let addresses = if !matches.value_of("vanity_prefix").is_none() {
-        if !matches.value_of("phrase").is_none() {
-            eprintln!("Incompatible options, vanity and seed phrase cannot be used together");
-            return;
-        }
-
-        if !matches.value_of("hdseed").is_none() {
-            eprintln!("Incompatible options, vanity and hdseed cannot be used together");
-            return;
-        }
-
-        if z_addresses != 1 {
-            eprintln!("Can only generate 1 zaddress in vanity mode. You specified {}", z_addresses);
-            return;
-        }
-
-        match cointype {
-            Some(s) => {
-                if s != 141 {
-                    eprintln!("Vanity mode will only run with Bip44CoinType 141, you specified {}", s);
-                    return;
-                }},
-            None => {}
-        };
-
-        let num_threads = matches.value_of("threads").unwrap().parse::<u32>().unwrap();
-
-        let prefix = matches.value_of("vanity_prefix").unwrap().to_string();
-        println!("Generating address starting with \"{}\"", prefix);
-        let addresses = match generate_vanity_wallet(num_threads, prefix) {
-            Ok(w) => w,
-            Err(e) => {
-                eprintln!("{}", e);
-                return;
-            }
-        };
-
-        // return
-        addresses
-
-    } else if !matches.value_of("phrase").is_none() {
-
-        if !matches.value_of("hdseed").is_none() {
-            eprintln!("Incompatible options, seed phrase and hdseed cannot be used together");
-            return;
-        }
-
-        let phrase = matches.value_of("phrase").unwrap().parse::<String>().unwrap();
-
-        print!("Generating {} Sapling addresses from seed phrase...", z_addresses);
-        io::stdout().flush().ok();
-        let addresses = generate_wallet_from_seed_phrase(z_addresses, phrase, cointype, nobip39);
-        println!("[OK]");
-
-        addresses
-
-    } else if !matches.value_of("hdseed").is_none() {
-
-        let phrase = matches.value_of("hdseed").unwrap().parse::<String>().unwrap();
-
-        print!("Generating {} Sapling addresses from HDSeed...", z_addresses);
-        io::stdout().flush().ok();
-
-        let seed = match hex::decode(phrase.clone()) {
-            Ok(s) => s,
-            Err(_) => {
-                println!("Invalid hex string - HDSeed");
-                return;
-            }
-        };
-
-        if seed.len() != 32 {
-            println!("Invalid HDSeed length");
-            return;
-        }
-
-        let addresses = generate_wallet_from_seed(z_addresses, seed, cointype, nobip39);
-        println!("[OK]");
-
-        addresses
-
+    let records = if let Some(prefix) = args.vanity {
+        paper::generate_vanity_wallet(&prefix, args.threads, options)?
+    } else if let Some(phrase) = args.phrase {
+        paper::generate_wallet(SeedSource::Phrase(&phrase), options)?
+    } else if let Some(phrase) = args.partialphrase {
+        paper::generate_wallet(SeedSource::PartialPhrase(&phrase), options)?
+    } else if let Some(seed) = args.hdseed {
+        let seed = hex::decode(seed).map_err(|_| "HD seed must be hexadecimal".to_owned())?;
+        paper::generate_wallet(SeedSource::HdSeed(&seed), options)?
     } else {
-        // Get user entropy.
-        let mut entropy: Vec<u8> = Vec::new();
-        // If the user hasn't specified any, read from the stdin
-        if matches.value_of("entropy").is_none() {
-            // Read from stdin
-            println!("Provide additional entropy for generating random numbers. Type in a string of random characters, press [ENTER] when done");
-            let mut buffer = String::new();
-            let stdin = io::stdin();
-            stdin.lock().read_line(&mut buffer).unwrap();
-
-            entropy.extend_from_slice(buffer.as_bytes());
+        let entropy = if let Some(entropy) = args.entropy {
+            entropy
         } else {
-            // Use provided entropy.
-            entropy.extend(matches.value_of("entropy").unwrap().as_bytes());
-        }
-
-        print!("Generating {} Sapling addresses...", z_addresses);
-        io::stdout().flush().ok();
-        let addresses = generate_wallet(nohd, z_addresses, &entropy, cointype, nobip39);
-        println!("[OK]");
-
-        addresses
-    };
-
-    // If the default format is present, write to the console if the filename is absent
-    if format == "json" {
-        if filename.is_none() {
-            println!("{}", addresses);
-        } else {
-            std::fs::write(filename.unwrap(), addresses).expect("Couldn't write to file!");
-            println!("Wrote {:?} as a plaintext file", filename);
-        }
-    } else if format == "pdf" {
-        // We already know the output file name was specified
-        print!("Writing {:?} as a PDF file...", filename.unwrap());
-        io::stdout().flush().ok();
-        match pdf::save_to_pdf(&addresses, filename.unwrap()) {
-            Ok(_)   => { println!("[OK]");},
-            Err(e)  => {
-                eprintln!("[ERROR]");
-                eprintln!("{}", e);
-            }
+            eprint!("Optional extra entropy (press Enter to skip): ");
+            io::stderr().flush().map_err(|e| e.to_string())?;
+            let mut entropy = String::new();
+            io::stdin()
+                .read_line(&mut entropy)
+                .map_err(|e| e.to_string())?;
+            entropy
         };
+        paper::generate_wallet(SeedSource::Random(entropy.as_bytes()), options)?
+    };
+    match args.format {
+        OutputFormat::Json => {
+            let json = paper::to_json(&records)?;
+            if let Some(path) = output {
+                let mut file_options = OpenOptions::new();
+                file_options.write(true).create_new(true);
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::OpenOptionsExt;
+                    file_options.mode(0o600);
+                }
+                let mut file = file_options
+                    .open(&path)
+                    .map_err(|e| format!("{}: {e}", path.display()))?;
+                if let Err(error) = file.write_all(json.as_bytes()) {
+                    drop(file);
+                    let cleanup = std::fs::remove_file(&path);
+                    return Err(match cleanup {
+                        Ok(()) => format!("{}: {error}", path.display()),
+                        Err(cleanup_error) => format!(
+                            "{}: {error}; could not remove incomplete output: {cleanup_error}",
+                            path.display()
+                        ),
+                    });
+                }
+                println!("Wrote {}", path.display());
+            } else {
+                println!("{json}");
+            }
+        }
+        OutputFormat::Pdf => {
+            let path = output.expect("PDF path validated above");
+            pdf::save_to_pdf(&records, &path)?;
+            println!("Wrote {}", path.display());
+        }
+    }
+    Ok(())
+}
+
+fn main() -> ExitCode {
+    match run() {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("Error: {error}");
+            ExitCode::FAILURE
+        }
     }
 }

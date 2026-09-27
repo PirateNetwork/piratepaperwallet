@@ -1,16 +1,15 @@
 ifeq ($(shell uname),Darwin)
-    EXT := dylib
+    NATIVE_LIBS := -framework Security -framework CoreFoundation -liconv -lresolv
 else
-    EXT := a
+    NATIVE_LIBS := -lpthread -ldl -lm
 endif
 
-all: target/debug/arrrpaperrust.$(EXT)
-	g++ src/main.cpp -L./target/debug -lzecpaperrust -lpthread -ldl -o run
+.PHONY: all clean
+all:
+	cargo build --lib -p qtlib
+	$(CXX) src/main.cpp -L../target/debug -lpiratepaperrust $(NATIVE_LIBS) -o run
 	./run
 
-target/debug/arrrpaperrust.$(EXT): src/lib.rs Cargo.toml
-	cargo build --lib
-
 clean:
-	rm -rf target
-	rm -rf run
+	cargo clean -p qtlib
+	rm -f run
